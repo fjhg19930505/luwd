@@ -1,0 +1,103 @@
+require "Lua/Game/Common/define"
+--[[
+	作者 : luwd
+	日期 : 2017/12/6 
+    功能描述 : 公式计算
+    用法：
+    引用这个文件后 require 'Lua/Game/Common/formulafunc'
+    调用CalculateFormula(formula, params)方法
+    @param formula 字符串类型为公式[公式内可包含"@人物属性名"和"#自定义参数"]
+    @param params 自定义参数 格式为table   {param1, param2, param3...} param的格式为 param1 = {paramKey = "#Level", paramValue=1}
+]]
+
+--[[
+    玩家属性格式
+]]
+local replaceFormat = {
+    "@(%w+)%)", "@(%w+)+", "@(%w+)-", "@(%w+)*", "@(%w+)/", "@(%w+)^", "@(%w+)"
+}
+
+--[[
+    替换自定义参数
+]]
+local function ReplaceCustomParam(formula, params)
+    for i = 1, #params, 1 do
+        local paramData = params[i]
+        paramKey = paramData.paramKey
+        paramValue = paramData.paramValue
+
+        if paramKey ~= nil or paramValue ~= nil then
+            formula = string.gsub(formula, paramKey, tostring(paramValue)) 
+        end
+    end
+    return formula
+end
+
+--[[
+    获取玩家属性参数
+]]
+local function FindPlayerAttrParam(formula)
+    local mRole = UnitMgr.mRoleObject
+    if mRole == nil then
+        return formula
+    end
+    local roleData = mRole.DataObject
+    if roleData == nil then
+        return formula
+    end
+    for i = 1, #replaceFormat, 1 do
+        for w in string.gmatch(formula, replaceFormat[i]) do
+            local replaceWord = concat("@", w)
+            local attr = w
+            local propType = roleData:GetPropType(attr)
+            local propValue = 0;
+            if propType == 1 then
+                propValue = roleData:QueryPropBool(attr)
+            elseif propType == 2 then
+                propValue = roleData:QueryPropByte(attr)
+            elseif propType == 3 then
+                propValue = roleData:QueryPropWord(attr)
+            elseif propType == 4 then
+                propValue = roleData:QueryPropInt(attr)
+            elseif propType == 5 then
+                propValue = roleData:QueryPropInt64(attr)
+            elseif propType == 6 then
+                propValue = roleData:QueryPropFloat(attr)
+            elseif propType == 7 then
+                propValue = roleData:QueryPropDouble(attr)
+            end
+
+            if propValue ~= nil then
+                formula = string.gsub(formula, replaceWord, propValue)
+            end
+        end
+    end
+
+    return formula
+end
+
+--[[
+    开放调用方法
+    计算公式
+    @param formula 字符串类型为公式[公式内可包含"@人物属性名"和"#自定义参数"]
+    @param params 自定义参数 格式为table   {param1, param2, param3...} param的格式为 param1 = {paramKey = "#Level", paramValue=1}
+]]
+function CalculateFormula(formula, params)
+    --先替换自定义参数
+    formula = ReplaceCustomParam(formula, params)
+    --然后替换玩家属性
+    formula = FindPlayerAttrParam(formula)
+    if formula == nil or formula == "" then
+        return 0
+    end
+
+    print("----------公式计算---------")
+    print(formula)
+    --用逆波兰表达式计算公式
+    local result = CS.NBolan.Calucate(formula)
+    print("----------公式结果---------")
+    print(result)
+    --返回结果
+    return result
+end
+
